@@ -32,4 +32,8 @@ class ThresholdFilter:
         now = datetime.now(timezone.utc)
         if item.published_at > now + timedelta(hours=1):
             return False
+        # 规则 4：综合评分低于阈值直接丢弃（注意：评分在分类之后、过滤之前已有预估）
+        # 此处用基础权重做预过滤：category=other 且 source_type 未知的内容极低分，直接排除
+        if item.category == "other" and item.source_type not in ("github", "rss"):
+            return False
         return True

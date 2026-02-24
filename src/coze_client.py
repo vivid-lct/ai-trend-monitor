@@ -39,7 +39,8 @@ class CozeClient:
         token_count = 0
 
         try:
-            print("\n[Coze] 正在请求分析，流式输出中...\n")
+            print("\n[Coze] 正在连接云端大模型，请稍候...", end="", flush=True)
+            first_chunk = True
             for event in self._coze.chat.stream(
                 bot_id=self._bot_id,
                 user_id=self._user_id,
@@ -48,6 +49,9 @@ class CozeClient:
                 ],
             ):
                 if event.event == ChatEventType.CONVERSATION_MESSAGE_DELTA:
+                    if first_chunk:
+                        print(" ✓ 已连接，模型分析中...\n")
+                        first_chunk = False
                     chunk = event.message.content
                     print(chunk, end="", flush=True)
                     reply_parts.append(chunk)

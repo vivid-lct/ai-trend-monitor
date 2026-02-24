@@ -19,7 +19,7 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
-# 日志配置：同时输出到控制台和文件
+# 日志配置：只写文件，不输出控制台（避免与 print 交错乱序）
 Path("data").mkdir(exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
@@ -28,7 +28,6 @@ logging.basicConfig(
         logging.handlers.RotatingFileHandler(
             "data/run.log", maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
         ),
-        logging.StreamHandler(sys.stdout),
     ],
 )
 logger = logging.getLogger(__name__)
@@ -85,15 +84,24 @@ def run_pipeline(config: dict, since: Optional[datetime]) -> list:
     # 1. 采集（单个采集器失败不影响整体）
     all_items = []
     fetcher_classes = [GitHubFetcher, RSSFetcher, HNFetcher, PWCFetcher]
-    for FetcherClass in fetcher_classes:
+    fetcher_names = {
+        GitHubFetcher: "GitHub Releases",
+        RSSFetcher:    "RSS 官方博客",
+        HNFetcher:     "Hacker News",
+        PWCFetcher:    "arXiv RSS",
+    }
+    enabled = [F for F in fetcher_classes if F(config).is_enabled()]
+    total = len(enabled)
+    for idx, FetcherClass in enumerate(enabled, 1):
+        name = fetcher_names.get(FetcherClass, FetcherClass.__name__)
+        print(f"  [{idx}/{total}] 正在采集 {name}...", end="", flush=True)
         fetcher = FetcherClass(config)
-        if not fetcher.is_enabled():
-            continue
         try:
             items = fetcher.fetch(since=since)
-            print(f"[FETCH] {FetcherClass.__name__}: {len(items)} 条")
+            print(f" ✓ {len(items)} 条")
             all_items.extend(items)
         except Exception as e:
+            print(f" ✗ 失败")
             logger.warning(f"{FetcherClass.__name__} 采集失败: {e}")
 
     before_dedup = len(all_items)
@@ -216,6 +224,7 @@ def run_mode_1(config: dict):
 
     print(f"\n✅ 完成！请打开报告查看：{report_path}")
     print(f"   （直接双击文件，或在浏览器中打开）")
+    _ask_continue()
 
 
 def run_mode_2(config: dict):
@@ -281,6 +290,7 @@ def run_mode_2(config: dict):
         print(f"报告已保存至：{report_path}")
     else:
         print(f"\n❌ 调用失败：{result.get('error', '未知错误')}")
+    _ask_continue()
 
 
 def run_mode_3(config: dict):
@@ -395,12 +405,24 @@ def run_mode_4(config: dict):
     print(f"✅ HTML 报告已更新：{html_path}")
 
 
+def _ask_continue():
+    """操作完成后询问是否继续，按回车返回主菜单，输入 0 退出"""
+    print()
+    try:
+        ch = input("按 Enter 返回主菜单，输入 0 退出：").strip()
+    except (EOFError, KeyboardInterrupt):
+        ch = "0"
+    if ch == "0":
+        print("退出。")
+        sys.exit(0)
+
+
 def show_menu() -> str:
     print("\n" + "=" * 58)
     print("  AI 技术趋势跟踪助手")
     print("=" * 58)
     print("  [1] 采集更新       — 采集 + HTML报告 + ai_context + 向量库")
-    print("  [2] Coze云端分析   — Coze API 高质量趋势摘要（开发中）")
+    print("  [2] Coze云端分析   — Coze API 高质量趋势摘要")
     print("  [3] RAG本地问答    — 自然语言提问，向量检索+本地大模型回答")
     print("  [4] 本地轻量分析   — Ollama 本地大模型离线兜底分析")
     print("  [0] 退出")
@@ -415,27 +437,33 @@ def main():
         help="直接指定运行模式（1/2/3/4），跳过交互菜单"
     )
     args = parser.parse_args()
-    mode = args.mode
-
-    if mode is None:
-        mode = show_menu()
-
     config = load_config()
 
-    if mode == "1":
-        run_mode_1(config)
-    elif mode == "2":
-        run_mode_2(config)
-    elif mode == "3":
-        run_mode_3(config)
-    elif mode == "4":
-        run_mode_4(config)
-    elif mode == "0":
-        print("退出。")
-        sys.exit(0)
-    else:
-        print(f"无效选项：{mode}")
-        sys.exit(1)
+    # 命令行直接指定模式：单次运行，不循环
+    if args.mode is not None:
+        mode = args.mode
+        if mode == "1":   run_mode_1(config)
+        elif mode == "2": run_mode_2(config)
+        elif mode == "3": run_mode_3(config)
+        elif mode == "4": run_mode_4(config)
+        return
+
+    # 交互菜单：循环直到用户选 0
+    while True:
+        mode = show_menu()
+        if mode == "1":
+            run_mode_1(config)
+        elif mode == "2":
+            run_mode_2(config)
+        elif mode == "3":
+            run_mode_3(config)
+        elif mode == "4":
+            run_mode_4(config)
+        elif mode == "0":
+            print("退出。")
+            break
+        else:
+            print(f"无效选项：{mode}，请重新输入")
 
 
 if __name__ == "__main__":
