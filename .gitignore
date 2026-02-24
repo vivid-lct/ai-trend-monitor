@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# 虚拟环境
+venv/
+.venv/
+env/
+conda-env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# 运行时数据（不提交采集结果）
+data/
+report/
+
+# 项目文档（本地存档，不上传）
+docs/
+
+# 密钥（绝对不能提交）
+.env
+
+# 日志
+*.log
+
+# 依赖锁（conda 环境用 environment.yml 管理）
+pip-requirements.txt

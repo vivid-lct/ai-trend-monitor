@@ -1,0 +1,155 @@
+# AI技术趋势跟踪助手 - 主配置文件
+
+# ============================================================
+# 数据源配置
+# ============================================================
+sources:
+  github:
+    enabled: true
+    repos:
+      - owner: langchain-ai
+        repo: langchain
+        name: LangChain
+      - owner: langchain-ai
+        repo: langgraph
+        name: LangGraph
+      - owner: run-llama
+        repo: llama_index
+        name: LlamaIndex
+      - owner: langgenius
+        repo: dify
+        name: Dify
+      - owner: crewAIInc
+        repo: crewAI
+        name: CrewAI
+      - owner: microsoft
+        repo: autogen
+        name: AutoGen
+      - owner: ollama
+        repo: ollama
+        name: Ollama
+      - owner: anthropics
+        repo: mcp
+        name: MCP
+
+  rss:
+    enabled: true
+    feeds:
+      - url: https://openai.com/blog/rss.xml
+        name: OpenAI Blog
+        category: llm
+      - url: https://www.anthropic.com/rss.xml
+        name: Anthropic Blog
+        category: llm
+      - url: https://blog.langchain.dev/rss/
+        name: LangChain Blog
+        category: framework
+      - url: https://www.llamaindex.ai/blog/rss.xml
+        name: LlamaIndex Blog
+        category: framework
+      - url: https://huggingface.co/blog/feed.xml
+        name: Hugging Face Blog
+        category: llm
+
+  hacker_news:
+    enabled: true
+    min_score: 50
+    keywords_required: true
+
+  papers_with_code:
+    enabled: true
+    top_n: 20
+
+# ============================================================
+# 关键词配置（用于分类和过滤）
+# ============================================================
+keywords:
+  framework:
+    - langchain
+    - llamaindex
+    - llama_index
+    - langgraph
+    - dify
+    - crewai
+    - autogen
+    - coze
+    - mcp
+    - ollama
+  llm:
+    - gpt
+    - claude
+    - gemini
+    - deepseek
+    - qwen
+    - llama
+    - openai
+    - anthropic
+  rag:
+    - rag
+    - retrieval augmented
+    - vector database
+    - embedding
+    - reranker
+    - graphrag
+  agent:
+    - agent
+    - tool use
+    - function calling
+    - multi-agent
+    - react
+    - agentic
+    - mcp
+  workflow:
+    - workflow
+    - pipeline
+    - orchestration
+    - low-code ai
+  breaking_change:
+    - breaking change
+    - "breaking:"
+    - deprecated
+    - removed
+    - migration guide
+    - incompatible
+
+# ============================================================
+# 阈值配置
+# ============================================================
+thresholds:
+  min_score: 30            # 低于此分数不在HTML主区域展示
+  hacker_news_min: 50      # HN最低分数
+  cold_start_days: 7       # 冷启动采集天数
+  max_items_per_run: 100   # 单次采集最大条目数（防止爆量）
+
+# ============================================================
+# 输出配置
+# ============================================================
+output:
+  data_dir: data
+  report_dir: report
+  report_filename: index.html
+  ai_context_filename: ai_context.md
+  archive_enabled: true
+
+# ============================================================
+# Coze配置（功能3专用，Key在.env中配置）[开发中]
+# ============================================================
+coze:
+  api_base: https://api.coze.cn
+  bot_id: ""               # 在.env中设置 COZE_BOT_ID
+  max_items_to_send: 20    # 每次发送给Coze的最大条目数
+
+# ============================================================
+# 本地大模型配置（功能4专用）[开发中]
+# 支持 Ollama / LM Studio 等兼容 OpenAI API 的本地服务
+# ============================================================
+local_model:
+  enabled: true
+  api_base: http://localhost:11434   # Ollama 默认地址
+  # api_base: http://localhost:1234  # LM Studio 默认地址
+  model: qwen2.5:3b                  # 推荐：qwen2.5:3b（RTX 2060 最优，~40 tok/s）；高质量用 qwen2.5:7b（~7-9 tok/s）
+  max_tokens: 3072
+  top_n_items: 20                    # 发送给模型的最高分条目数量
+  prompt_file: ai_analyst.md         # 系统提示词文件（config/prompts/ 目录下）
+  # prompt_file: summarizer.md       # 备选：简洁摘要版（300字以内速报）
+  deep_mode: false                   # true=深度分析模式，使用 ai_analyst_deep.md（输出更详细，耗时更长）
