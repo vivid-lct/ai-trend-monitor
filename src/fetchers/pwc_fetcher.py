@@ -36,7 +36,10 @@ class PWCFetcher(BaseFetcher):
                 logger.warning(f"arXiv RSS 解析失败 {feed_url}: {e}")
                 continue
 
+            per_feed = max(1, top_n // len(ARXIV_FEEDS))
             for entry in feed.entries:
+                if len([i for i in items if i.source == source_name]) >= per_feed:
+                    break
                 link = entry.get("link", "")
                 if not link or link in seen_urls:
                     continue
@@ -60,9 +63,6 @@ class PWCFetcher(BaseFetcher):
                         content=summary[:500],
                     )
                 )
-
-            if len(items) >= top_n:
-                break
 
         return items[:top_n]
 

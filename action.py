@@ -90,12 +90,11 @@ def run_pipeline(config: dict, since: Optional[datetime]) -> list:
         HNFetcher:     "Hacker News",
         PWCFetcher:    "arXiv RSS",
     }
-    enabled = [F for F in fetcher_classes if F(config).is_enabled()]
-    total = len(enabled)
-    for idx, FetcherClass in enumerate(enabled, 1):
+    enabled_fetchers = [(F, f) for F in fetcher_classes for f in [F(config)] if f.is_enabled()]
+    total = len(enabled_fetchers)
+    for idx, (FetcherClass, fetcher) in enumerate(enabled_fetchers, 1):
         name = fetcher_names.get(FetcherClass, FetcherClass.__name__)
         print(f"  [{idx}/{total}] 正在采集 {name}...", end="", flush=True)
-        fetcher = FetcherClass(config)
         try:
             items = fetcher.fetch(since=since)
             print(f" ✓ {len(items)} 条")
@@ -244,7 +243,12 @@ def run_mode_2(config: dict):
 
     # 读取本地数据
     from src.fetchers.base_fetcher import Item
-    from dateutil.parser import parse as parse_dt
+    from dateutil.parser import parse as _parse_dt
+    def parse_dt(s):
+        dt = _parse_dt(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
 
     data_dir = config["output"]["data_dir"]
     store = JsonStore(data_dir=data_dir)

@@ -88,21 +88,6 @@ class HTMLReporter:
     # ─── 仪表盘 index.html ─────────────────────────────────────────────────
 
     @staticmethod
-    def _score_color(score: float) -> str:
-        if score >= 70: return "#22c55e"
-        if score >= 50: return "#f59e0b"
-        return "#71717a"
-
-    def _model_section(self, model: Optional[dict]) -> str:
-        if model:
-            return (f'<section class="card"><h2 class="sec-title">🤖 本地模型分析</h2>'
-                    f'<div class="model-meta">{model["meta"]}</div>'
-                    f'<div class="model-body">{model["body"]}</div></section>')
-        return ('<section class="card"><h2 class="sec-title">🤖 本地模型分析</h2>'
-                '<div class="model-empty">暂无分析报告 — 运行 <code>python action.py --mode 4</code> 生成'
-                '</div></section>')
-
-    @staticmethod
     def _md_to_html(text: str) -> str:
         import re, html as _hl
         out, in_ul = [], False
