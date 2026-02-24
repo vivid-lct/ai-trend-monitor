@@ -219,12 +219,68 @@ def run_mode_1(config: dict):
 
 
 def run_mode_2(config: dict):
-    """Mode 2：Coze云端分析 — 调用Coze API完成高质量趋势摘要与深度分析报告（开发中）"""
-    print("\n[Mode 2] Coze 云端分析功能正在开发中，请等待 Coze API 配置完成后使用。")
-    print("当前可用模式：")
-    print("  Mode 1 — 采集更新")
-    print("  Mode 3 — RAG 本地问答")
-    print("  Mode 4 — 本地轻量分析（Ollama）")
+    """Mode 2：Coze云端分析 — 调用Coze API完成高质量趋势摘要与深度分析报告"""
+    from src.coze_client import CozeClient
+    from src.storage.json_store import JsonStore
+
+    # 读取 Coze 配置
+    api_key = os.getenv("COZE_API_KEY", "")
+    bot_id  = os.getenv("COZE_BOT_ID", "")
+
+    if not api_key or not bot_id:
+        print("\n⚠ 未配置 COZE_API_KEY 或 COZE_BOT_ID，请在 .env 文件中填写：")
+        print("  COZE_API_KEY=your_key")
+        print("  COZE_BOT_ID=your_bot_id")
+        return
+
+    # 读取本地数据
+    from src.fetchers.base_fetcher import Item
+    from dateutil.parser import parse as parse_dt
+
+    data_dir = config["output"]["data_dir"]
+    store = JsonStore(data_dir=data_dir)
+    raw_items = store.load_latest()
+
+    if not raw_items:
+        print("\n⚠ 本地数据为空，请先运行 Mode 1 采集数据。")
+        return
+
+    items = []
+    for d in raw_items:
+        try:
+            items.append(Item(
+                title=d.get("title", ""),
+                url=d.get("url", ""),
+                source=d.get("source", ""),
+                source_type=d.get("source_type", ""),
+                category=d.get("category", "other"),
+                published_at=parse_dt(d["published_at"]),
+                content=d.get("content", ""),
+                score=float(d.get("score", 0)),
+                is_breaking_change=d.get("is_breaking_change", False),
+                tags=d.get("tags", []),
+                raw_score=d.get("raw_score", 0),
+                extra=d.get("extra", {}),
+            ))
+        except Exception:
+            continue
+
+    print(f"\n[Mode 2] 共 {len(items)} 条数据，正在调用 Coze 云端分析...")
+
+    client = CozeClient(api_key=api_key, bot_id=bot_id)
+    result = client.send(items)
+
+    if result["status"] == "ok":
+        # 保存报告
+        report_path = Path(data_dir) / "coze_report.md"
+        from datetime import datetime as _dt
+        header = f"# Coze AI 趋势分析报告\n\n> 生成时间：{_dt.now().strftime('%Y-%m-%d %H:%M')}\n\n---\n\n"
+        report_path.write_text(header + result["reply"], encoding="utf-8")
+        token_info = f"（消耗 {result.get('token_count', 0)} tokens）"
+        print(f"\n✅ 分析完成 {token_info}")
+        print(f"报告已保存至：{report_path}")
+    else:
+        print(f"\n❌ 调用失败：{result.get('error', '未知错误')}")
 
 
 def run_mode_3(config: dict):

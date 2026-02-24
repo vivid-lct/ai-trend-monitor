@@ -1,11 +1,11 @@
 """
-coze_client.py - Coze API 客户端（Mode 2 专用，开发中）
-将采集数据格式化为 Prompt 发送给 Coze Bot，获取 AI 摘要和推送结果
+coze_client.py - Coze API 客户端（Mode 2 专用）
+使用 cozepy SDK 以流式响应方式调用 Coze Bot，完成 AI 趋势摘要分析
 """
 import logging
 from typing import List
 
-import requests
+from cozepy import Coze, TokenAuth, Message, ChatEventType, COZE_CN_BASE_URL
 
 from src.fetchers.base_fetcher import Item
 
@@ -13,54 +13,53 @@ logger = logging.getLogger(__name__)
 
 
 class CozeClient:
-    """Coze API 客户端"""
+    """Coze API 客户端（基于 cozepy SDK，流式响应）"""
 
-    def __init__(self, api_key: str, bot_id: str, api_base: str = "https://api.coze.cn"):
-        self.api_key = api_key
-        self.bot_id = bot_id
-        self.api_base = api_base.rstrip("/")
+    def __init__(self, api_key: str, bot_id: str, user_id: str = "ai_trend_tracker"):
+        self._bot_id = bot_id
+        self._user_id = user_id
+        self._coze = Coze(
+            auth=TokenAuth(token=api_key),
+            base_url=COZE_CN_BASE_URL,
+        )
 
     def send(self, items: List[Item]) -> dict:
         """
-        将高分条目发送给 Coze Bot 处理
-        :param items: 已过滤、评分的条目列表（只发送 score >= 60 的前20条）
-        :return: Coze 返回的处理结果摘要
+        将高分条目发送给 Coze Bot，流式接收分析报告。
+        优先取 score>=60 的前20条，不足时兜底取前10条。
+        返回 {"status": "ok", "reply": "...", "token_count": N}
         """
         high_items = [i for i in items if i.score >= 60][:20]
         if not high_items:
-            high_items = items[:10]  # 兜底：至少发10条
+            high_items = items[:10]
 
         prompt = self._build_prompt(high_items)
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "bot_id": self.bot_id,
-            "user_id": "ai_trend_tracker",
-            "stream": False,
-            "auto_save_history": False,
-            "additional_messages": [
-                {"role": "user", "content": prompt, "content_type": "text"}
-            ],
-        }
+
+        reply_parts: List[str] = []
+        token_count = 0
+
         try:
-            resp = requests.post(
-                f"{self.api_base}/v3/chat",
-                headers=headers,
-                json=payload,
-                timeout=60,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            # 提取 Coze 回复文本
-            messages = data.get("data", {}).get("messages", [])
-            reply = next(
-                (m.get("content", "") for m in messages if m.get("role") == "assistant"),
-                "（无回复）",
-            )
-            return {"status": "ok", "reply": reply, "raw": data}
-        except requests.RequestException as e:
+            print("\n[Coze] 正在请求分析，流式输出中...\n")
+            for event in self._coze.chat.stream(
+                bot_id=self._bot_id,
+                user_id=self._user_id,
+                additional_messages=[
+                    Message.build_user_question_text(prompt),
+                ],
+            ):
+                if event.event == ChatEventType.CONVERSATION_MESSAGE_DELTA:
+                    chunk = event.message.content
+                    print(chunk, end="", flush=True)
+                    reply_parts.append(chunk)
+
+                if event.event == ChatEventType.CONVERSATION_CHAT_COMPLETED:
+                    token_count = event.chat.usage.token_count if event.chat.usage else 0
+
+            print()  # 流式输出结束换行
+            reply = "".join(reply_parts)
+            return {"status": "ok", "reply": reply, "token_count": token_count}
+
+        except Exception as e:
             logger.error(f"Coze API 调用失败: {e}")
             return {"status": "error", "error": str(e)}
 
@@ -77,7 +76,7 @@ class CozeClient:
         for i, item in enumerate(items, 1):
             pub = item.published_at.strftime("%Y-%m-%d")
             lines.append(f"{i}. [{item.category.upper()}] {item.title}")
-            lines.append(f"   来源：{item.source} | 时间：{pub} | 评分：{item.score}")
+            lines.append(f"   来源：{item.source} | 时间：{pub} | 评分：{item.score:.0f}")
             if item.is_breaking_change:
                 lines.append("   ⚠️ Breaking Change")
             if item.content:
